@@ -90,13 +90,17 @@
 #define MCP_16MHz_100kBPS_CFG2 (0xFA)
 #define MCP_16MHz_100kBPS_CFG3 (0x87)
 
-#define MCP_16MHz_80kBPS_CFG1 (0x03)
-#define MCP_16MHz_80kBPS_CFG2 (0xFF)
-#define MCP_16MHz_80kBPS_CFG3 (0x87)
+#define MCP_16MHz_95kBPS_CFG1 (0x03)
+#define MCP_16MHz_95kBPS_CFG2 (0xAD)
+#define MCP_16MHz_95kBPS_CFG3 (0x07)
 
 #define MCP_16MHz_83k3BPS_CFG1 (0x03)
 #define MCP_16MHz_83k3BPS_CFG2 (0xBE)
 #define MCP_16MHz_83k3BPS_CFG3 (0x07)
+
+#define MCP_16MHz_80kBPS_CFG1 (0x03)
+#define MCP_16MHz_80kBPS_CFG2 (0xFF)
+#define MCP_16MHz_80kBPS_CFG3 (0x87)
 
 #define MCP_16MHz_50kBPS_CFG1 (0x07)
 #define MCP_16MHz_50kBPS_CFG2 (0xFA)

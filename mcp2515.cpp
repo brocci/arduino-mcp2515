@@ -25,7 +25,7 @@ MCP2515::MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK, SPIClass * _SPI)
     SPICS = _CS;
     SPI_CLOCK = _SPI_CLOCK;
     pinMode(SPICS, OUTPUT);
-    endSPI();
+    digitalWrite(SPICS, HIGH);
 }
 
 void MCP2515::startSPI() {

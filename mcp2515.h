@@ -4,6 +4,14 @@
 #include <SPI.h>
 #include "can.h"
 
+// ESP8266: functions called from ISR context must reside in IRAM.
+// Without IRAM_ATTR, flash-resident functions cause "ISR not in IRAM!" panic.
+#if defined(ARDUINO_ARCH_ESP8266)
+#define MCP2515_ISR_ATTR IRAM_ATTR
+#else
+#define MCP2515_ISR_ATTR
+#endif
+
 template<typename T, size_t SIZE>
 class CircularQueue {
 private:
@@ -520,8 +528,8 @@ class MCP2515
 
     private:
 
-        void startSPI();
-        void endSPI();
+        void startSPI() const;
+        void endSPI() const;
 
         ERROR setMode(const CANCTRL_REQOP_MODE mode);
 
@@ -612,6 +620,15 @@ class MCP2515
         void clearRXnOVR(void);
         void clearMERR();
         void clearERRIF();
+
+        //
+        // ISR-context register access (SPI transaction must be active)
+        //
+        uint8_t readRegisterRaw(const REGISTER reg);
+        void readRegistersRaw(const REGISTER reg, uint8_t values[], const uint8_t n);
+        void setRegistersRaw(const REGISTER reg, const uint8_t values[], const uint8_t n);
+        void modifyRegisterRaw(const REGISTER reg, const uint8_t mask, const uint8_t data);
+        uint8_t getStatusRaw(void);
 };
 
 #endif

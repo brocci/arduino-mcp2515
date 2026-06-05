@@ -33,12 +33,12 @@ void MCP2515::begin() {
     SPI_PORT->begin();
 }
 
-void MCP2515::startSPI() {
+void MCP2515_ISR_ATTR MCP2515::startSPI() const {
     SPI_PORT->beginTransaction(SPISettings(SPI_CLOCK, MSBFIRST, SPI_MODE0));
     digitalWrite(SPI_CS, LOW);
 }
 
-void MCP2515::endSPI() {
+void MCP2515_ISR_ATTR MCP2515::endSPI() const {
     digitalWrite(SPI_CS, HIGH);
     SPI_PORT->endTransaction();
 }
@@ -96,35 +96,98 @@ MCP2515::ERROR MCP2515::reset(void)
 
 void MCP2515::enableInterrupt(int intPin, void (*callback)(void)) {
     pinMode(intPin, INPUT_PULLUP);
-    SPIn->usingInterrupt(digitalPinToInterrupt(intPin));
+    // ESP8266 core v3.x removed usingInterrupt() from SPIClass.
+    // SPI interrupt safety relies on beginTransaction/endTransaction.
+#ifndef ARDUINO_ARCH_ESP8266
+    SPI_PORT->usingInterrupt(digitalPinToInterrupt(intPin));
+#endif
     attachInterrupt(digitalPinToInterrupt(intPin), callback, FALLING);
 }
 
-void MCP2515::handleInterrupt(void)
+void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
 {
-    struct can_frame frame;
-    uint8_t stat = getStatus();
+    startSPI();
 
-    while (stat & STAT_RXIF_MASK) {
-        RXBn rxbn = (stat & STAT_RX0IF) ? RXB0 : RXB1;
-        if (readMessage(rxbn, &frame) == ERROR_OK) {
-            noInterrupts();
+    uint8_t canintf = readRegisterRaw(MCP_CANINTF);
+
+    if (canintf & (CANINTF_RX0IF | CANINTF_RX1IF)) {
+        struct can_frame frame;
+        for (int i = 0; i < 2; i++) {
+            uint8_t stat = getStatusRaw();
+            if (!(stat & STAT_RXIF_MASK)) break;
+
+            uint8_t rxb_idx = (stat & STAT_RX0IF) ? 0 : 1;
+            const struct RXBn_REGS *rxb = &RXB[rxb_idx];
+
+            uint8_t tbufdata[5];
+            readRegistersRaw(rxb->SIDH, tbufdata, 5);
+
+            uint32_t id = (tbufdata[MCP_SIDH]<<3) + (tbufdata[MCP_SIDL]>>5);
+            if (tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) {
+                id = (id<<2) + (tbufdata[MCP_SIDL] & 0x03);
+                id = (id<<8) + tbufdata[MCP_EID8];
+                id = (id<<8) + tbufdata[MCP_EID0];
+                id |= CAN_EFF_FLAG;
+            }
+
+            uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
+            if (dlc > CAN_MAX_DLEN) dlc = CAN_MAX_DLEN;
+
+            frame.can_id = id;
+            frame.can_dlc = dlc;
+            readRegistersRaw(rxb->DATA, frame.data, dlc);
+
+            modifyRegisterRaw(MCP_CANINTF, rxb->CANINTF_RXnIF, 0);
+
             if (!_rxQueue.isFull()) {
                 _rxQueue.push(frame);
             }
-            interrupts();
         }
-        stat = getStatus();
     }
 
-    struct can_frame txFrame;
-    while (_txQueue.peek(txFrame)) {
-        if (sendMessageDirect(&txFrame) != ERROR_OK) break;
-        noInterrupts();
-        _txQueue.pop(txFrame);
-        interrupts();
+    if (canintf & (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF)) {
+        modifyRegisterRaw(MCP_CANINTF,
+            CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF, 0);
+
+        struct can_frame frame;
+        while (_txQueue.peek(frame)) {
+            bool sent = false;
+
+            for (int i = 0; i < N_TXBUFFERS; i++) {
+                const struct TXBn_REGS *txbuf = &TXB[i];
+                uint8_t ctrlval = readRegisterRaw(txbuf->CTRL);
+                if ((ctrlval & TXB_TXREQ) == 0) {
+                    uint8_t data[13];
+                    bool ext = (frame.can_id & CAN_EFF_FLAG);
+                    bool rtr = (frame.can_id & CAN_RTR_FLAG);
+                    uint32_t id = (frame.can_id & (ext ? CAN_EFF_MASK : CAN_SFF_MASK));
+
+                    prepareId(data, ext, id);
+                    data[MCP_DLC] = rtr ? (frame.can_dlc | RTR_MASK) : frame.can_dlc;
+                    memcpy(&data[MCP_DATA], frame.data, frame.can_dlc);
+                    setRegistersRaw(txbuf->SIDH, data, 5 + frame.can_dlc);
+                    modifyRegisterRaw(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
+
+                    sent = true;
+                    break;
+                }
+            }
+
+            if (!sent) break;
+
+            _txQueue.pop(frame);
+        }
     }
 
+    if (canintf & (CANINTF_ERRIF | CANINTF_MERRF)) {
+        uint8_t eflg = readRegisterRaw(MCP_EFLG);
+        if (eflg & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+            modifyRegisterRaw(MCP_EFLG, eflg & (EFLG_RX0OVR | EFLG_RX1OVR), 0);
+        }
+        modifyRegisterRaw(MCP_CANINTF, canintf & (CANINTF_ERRIF | CANINTF_MERRF), 0);
+    }
+
+    endSPI();
     _interruptPending = true;
 }
 
@@ -919,4 +982,40 @@ uint8_t MCP2515::errorCountRX(void) const
 uint8_t MCP2515::errorCountTX(void) const
 {
     return readRegister(MCP_TEC);
+}
+
+//
+// ISR-context register access (SPI transaction must be active)
+//
+
+uint8_t MCP2515::readRegisterRaw(const REGISTER reg) {
+    SPI_PORT->transfer(INSTRUCTION_READ);
+    SPI_PORT->transfer(reg);
+    return SPI_PORT->transfer(0x00);
+}
+
+void MCP2515::readRegistersRaw(const REGISTER reg, uint8_t values[], const uint8_t n) {
+    SPI_PORT->transfer(INSTRUCTION_READ);
+    SPI_PORT->transfer(reg);
+    for (uint8_t i = 0; i < n; i++)
+        values[i] = SPI_PORT->transfer(0x00);
+}
+
+void MCP2515::setRegistersRaw(const REGISTER reg, const uint8_t values[], const uint8_t n) {
+    SPI_PORT->transfer(INSTRUCTION_WRITE);
+    SPI_PORT->transfer(reg);
+    for (uint8_t i = 0; i < n; i++)
+        SPI_PORT->transfer(values[i]);
+}
+
+void MCP2515::modifyRegisterRaw(const REGISTER reg, const uint8_t mask, const uint8_t data) {
+    SPI_PORT->transfer(INSTRUCTION_BITMOD);
+    SPI_PORT->transfer(reg);
+    SPI_PORT->transfer(mask);
+    SPI_PORT->transfer(data);
+}
+
+uint8_t MCP2515::getStatusRaw(void) {
+    SPI_PORT->transfer(INSTRUCTION_READ_STATUS);
+    return SPI_PORT->transfer(0x00);
 }

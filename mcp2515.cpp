@@ -19,13 +19,18 @@ MCP2515::MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK, SPIClass * _SPI)
     }
     else {
         SPI_PORT = &SPI;
-        SPI_PORT->begin();
     }
 
     SPI_CS = _CS;
     SPI_CLOCK = _SPI_CLOCK;
+
+    _interruptPending = false;
+}
+
+void MCP2515::begin() {
     pinMode(SPI_CS, OUTPUT);
     digitalWrite(SPI_CS, HIGH);
+    SPI_PORT->begin();
 }
 
 void MCP2515::startSPI() {
@@ -55,7 +60,7 @@ MCP2515::ERROR MCP2515::reset(void)
     setRegister(MCP_RXB0CTRL, 0);
     setRegister(MCP_RXB1CTRL, 0);
 
-    setRegister(MCP_CANINTE, CANINTF_RX0IF | CANINTF_RX1IF | CANINTF_ERRIF | CANINTF_MERRF);
+    setRegister(MCP_CANINTE, CANINTF_RX0IF | CANINTF_RX1IF);
 
     // receives all valid messages using either Standard or Extended Identifiers that
     // meet filter criteria. RXF0 is applied for RXB0, RXF1 is applied for RXB1
@@ -89,7 +94,41 @@ MCP2515::ERROR MCP2515::reset(void)
     return ERROR_OK;
 }
 
-uint8_t MCP2515::readRegister(const REGISTER reg)
+void MCP2515::enableInterrupt(int intPin, void (*callback)(void)) {
+    pinMode(intPin, INPUT_PULLUP);
+    SPIn->usingInterrupt(digitalPinToInterrupt(intPin));
+    attachInterrupt(digitalPinToInterrupt(intPin), callback, FALLING);
+}
+
+void MCP2515::handleInterrupt(void)
+{
+    struct can_frame frame;
+    uint8_t stat = getStatus();
+
+    while (stat & STAT_RXIF_MASK) {
+        RXBn rxbn = (stat & STAT_RX0IF) ? RXB0 : RXB1;
+        if (readMessage(rxbn, &frame) == ERROR_OK) {
+            noInterrupts();
+            if (!_rxQueue.isFull()) {
+                _rxQueue.push(frame);
+            }
+            interrupts();
+        }
+        stat = getStatus();
+    }
+
+    struct can_frame txFrame;
+    while (_txQueue.peek(txFrame)) {
+        if (sendMessageDirect(&txFrame) != ERROR_OK) break;
+        noInterrupts();
+        _txQueue.pop(txFrame);
+        interrupts();
+    }
+
+    _interruptPending = true;
+}
+
+uint8_t MCP2515::readRegister(const REGISTER reg) const
 {
     startSPI();
     SPI_PORT->transfer(INSTRUCTION_READ);
@@ -100,7 +139,7 @@ uint8_t MCP2515::readRegister(const REGISTER reg)
     return ret;
 }
 
-void MCP2515::readRegisters(const REGISTER reg, uint8_t values[], const uint8_t n)
+void MCP2515::readRegisters(const REGISTER reg, uint8_t values[], const uint8_t n) const
 {
     startSPI();
     SPI_PORT->transfer(INSTRUCTION_READ);
@@ -142,7 +181,7 @@ void MCP2515::modifyRegister(const REGISTER reg, const uint8_t mask, const uint8
     endSPI();
 }
 
-uint8_t MCP2515::getStatus(void)
+uint8_t MCP2515::getStatus(void) const
 {
     startSPI();
     SPI_PORT->transfer(INSTRUCTION_READ_STATUS);
@@ -627,6 +666,29 @@ MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *fra
 
 MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
 {
+    // Try to drain any pending queued messages first
+    processTxQueue();
+
+    // Try direct hardware transmission
+    ERROR result = sendMessageDirect(frame);
+    if (result == ERROR_OK) {
+        return ERROR_OK;
+    }
+
+    // Hardware buffers full - enqueue if room
+    noInterrupts();
+    bool enqueued = _txQueue.push(*frame);
+    interrupts();
+
+    if (enqueued) {
+        return ERROR_OK;
+    }
+
+    return ERROR_ALLTXBUSY;
+}
+
+MCP2515::ERROR MCP2515::sendMessageDirect(const struct can_frame *frame)
+{
     if (frame->can_dlc > CAN_MAX_DLEN) {
         return ERROR_FAILTX;
     }
@@ -642,6 +704,30 @@ MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
     }
 
     return ERROR_ALLTXBUSY;
+}
+
+bool MCP2515::processTxQueue(void)
+{
+    struct can_frame frame;
+    while (!_txQueue.isEmpty()) {
+        noInterrupts();
+        bool popped = _txQueue.peek(frame);
+        interrupts();
+
+        if (!popped) {
+            break;
+        }
+
+        ERROR result = sendMessageDirect(&frame);
+        if (result != ERROR_OK) {
+            return false;  // HW buffers full, retry later
+        }
+
+        noInterrupts();
+        _txQueue.pop(frame);
+        interrupts();
+    }
+    return true;  // Queue empty
 }
 
 MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
@@ -683,28 +769,47 @@ MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
 
 MCP2515::ERROR MCP2515::readMessage(struct can_frame *frame)
 {
-    ERROR rc;
-    uint8_t stat = getStatus();
-
-    if ( stat & STAT_RX0IF ) {
-        rc = readMessage(RXB0, frame);
-    } else if ( stat & STAT_RX1IF ) {
-        rc = readMessage(RXB1, frame);
-    } else {
-        rc = ERROR_NOMSG;
+    // If interrupt flagged, drain HW buffers into queue
+    if (_interruptPending) {
+        _interruptPending = false;
+        drainRxBuffers();
     }
 
-    return rc;
+    // Read from software queue first
+    noInterrupts();
+    bool dequeued = _rxQueue.pop(*frame);
+    interrupts();
+
+    if (dequeued) {
+        return ERROR_OK;
+    }
+
+    // Queue empty - try hardware directly
+    uint8_t stat = getStatus();
+    if ( stat & STAT_RX0IF ) {
+        return readMessage(RXB0, frame);
+    } else if ( stat & STAT_RX1IF ) {
+        return readMessage(RXB1, frame);
+    }
+
+    return ERROR_NOMSG;
 }
 
 bool MCP2515::checkReceive(void)
 {
-    uint8_t res = getStatus();
-    if ( res & STAT_RXIF_MASK ) {
+    // Check software queue first
+    if (_rxQueue.getCount() > 0) {
         return true;
-    } else {
-        return false;
     }
+
+    // Check interrupt flag
+    if (_interruptPending) {
+        return true;
+    }
+
+    // Check hardware buffers
+    uint8_t res = getStatus();
+    return (res & STAT_RXIF_MASK) != 0;
 }
 
 bool MCP2515::checkError(void)
@@ -718,7 +823,40 @@ bool MCP2515::checkError(void)
     }
 }
 
-uint8_t MCP2515::getErrorFlags(void)
+uint8_t MCP2515::drainRxBuffers(void)
+{
+    uint8_t drained = 0;
+    struct can_frame frame;
+
+    while (true) {
+        noInterrupts();
+        bool queueFull = _rxQueue.isFull();
+        interrupts();
+
+        if (queueFull) break;
+
+        uint8_t stat = getStatus();
+        ERROR rc = ERROR_NOMSG;
+
+        if (stat & STAT_RX0IF) {
+            rc = readMessage(RXB0, &frame);
+        } else if (stat & STAT_RX1IF) {
+            rc = readMessage(RXB1, &frame);
+        }
+
+        if (rc != ERROR_OK) break;
+
+        noInterrupts();
+        _rxQueue.push(frame);
+        interrupts();
+
+        drained++;
+    }
+
+    return drained;
+}
+
+uint8_t MCP2515::getErrorFlags(void) const
 {
     return readRegister(MCP_EFLG);
 }
@@ -748,11 +886,6 @@ uint8_t MCP2515::getInterruptMask(void)
     return readRegister(MCP_CANINTE);
 }
 
-void MCP2515::clearTXInterrupts(void)
-{
-    modifyRegister(MCP_CANINTF, (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF), 0);
-}
-
 void MCP2515::clearRXnOVR(void)
 {
 	uint8_t eflg = getErrorFlags();
@@ -778,12 +911,12 @@ void MCP2515::clearERRIF()
     modifyRegister(MCP_CANINTF, CANINTF_ERRIF, 0);
 }
 
-uint8_t MCP2515::errorCountRX(void)                             
+uint8_t MCP2515::errorCountRX(void) const
 {
     return readRegister(MCP_REC);
 }
 
-uint8_t MCP2515::errorCountTX(void)                             
+uint8_t MCP2515::errorCountTX(void) const
 {
     return readRegister(MCP_TEC);
 }

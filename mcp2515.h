@@ -4,6 +4,64 @@
 #include <SPI.h>
 #include "can.h"
 
+template<typename T, size_t SIZE>
+class CircularQueue {
+private:
+    T frames[SIZE];
+    uint8_t head;
+    uint8_t tail;
+    uint8_t count;
+
+public:
+    CircularQueue() : head(0), tail(0), count(0) {}
+
+    bool push(const T& item) {
+        if (count >= SIZE) {
+            return false;
+        }
+        frames[tail] = item;
+        tail = (tail + 1) % SIZE;
+        count++;
+        return true;
+    }
+
+    bool pop(T& item) {
+        if (count == 0) {
+            return false;
+        }
+        item = frames[head];
+        head = (head + 1) % SIZE;
+        count--;
+        return true;
+    }
+
+    bool peek(T& item) const {
+        if (count == 0) {
+            return false;
+        }
+        item = frames[head];
+        return true;
+    }
+
+    uint8_t getCount() const {
+        return count;
+    }
+
+    bool isEmpty() const {
+        return count == 0;
+    }
+
+    bool isFull() const {
+        return count >= SIZE;
+    }
+
+    void clear() {
+        head = 0;
+        tail = 0;
+        count = 0;
+    }
+};
+
 /*
  *  Speed 8M
  */
@@ -205,6 +263,14 @@ enum CAN_CLKOUT {
     CLKOUT_DIV4 = 0x2,
     CLKOUT_DIV8 = 0x3,
 };
+
+#ifndef MCP2515_TX_QUEUE_SIZE
+#define MCP2515_TX_QUEUE_SIZE 6
+#endif
+
+#ifndef MCP2515_RX_QUEUE_SIZE
+#define MCP2515_RX_QUEUE_SIZE 8
+#endif
 
 class MCP2515
 {
@@ -459,47 +525,93 @@ class MCP2515
 
         ERROR setMode(const CANCTRL_REQOP_MODE mode);
 
-        uint8_t readRegister(const REGISTER reg);
-        void readRegisters(const REGISTER reg, uint8_t values[], const uint8_t n);
+        uint8_t readRegister(const REGISTER reg) const;
+        void readRegisters(const REGISTER reg, uint8_t values[], const uint8_t n) const;
         void setRegister(const REGISTER reg, const uint8_t value);
         void setRegisters(const REGISTER reg, const uint8_t values[], const uint8_t n);
         void modifyRegister(const REGISTER reg, const uint8_t mask, const uint8_t data);
 
         void prepareId(uint8_t *buffer, const bool ext, const uint32_t id);
-    
+
+        CircularQueue<struct can_frame, MCP2515_TX_QUEUE_SIZE> _txQueue;
+        CircularQueue<struct can_frame, MCP2515_RX_QUEUE_SIZE> _rxQueue;
+        volatile bool _interruptPending;
+
     public:
+        //
+        // Lifecycle
+        //
         MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK = DEFAULT_SPI_CLOCK, SPIClass * _SPI = nullptr);
+        void begin();
         ERROR reset(void);
+
+        //
+        // Interrupt
+        //
+        void enableInterrupt(int intPin, void (*callback)(void));
+        void handleInterrupt(void);
+
+        //
+        // Operating modes
+        //
         ERROR setConfigMode();
         ERROR setListenOnlyMode();
         ERROR setSleepMode();
         ERROR setLoopbackMode();
         ERROR setNormalMode();
         ERROR setNormalOneShotMode();
+
+        //
+        // Bit timing & clock
+        //
         ERROR setClkOut(const CAN_CLKOUT divisor);
         ERROR setBitrate(const CAN_SPEED canSpeed);
         ERROR setBitrate(const CAN_SPEED canSpeed, const CAN_CLOCK canClock);
+
+        //
+        // Filters & masks
+        //
         ERROR setFilterMask(const MASK num, const bool ext, const uint32_t ulData);
         ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData);
+
+        //
+        // Transmit
+        //
         ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
         ERROR sendMessage(const struct can_frame *frame);
+        ERROR sendMessageDirect(const struct can_frame *frame);
+        bool processTxQueue(void);
+        uint8_t getTxQueueDepth(void) const { return _txQueue.getCount(); }
+
+        //
+        // Receive
+        //
         ERROR readMessage(const RXBn rxbn, struct can_frame *frame);
         ERROR readMessage(struct can_frame *frame);
         bool checkReceive(void);
+        uint8_t drainRxBuffers(void);
+        uint8_t getRxQueueDepth(void) const { return _rxQueue.getCount(); }
+
+        //
+        // Diagnostics
+        //
         bool checkError(void);
-        uint8_t getErrorFlags(void);
+        uint8_t getErrorFlags(void) const;
         uint8_t getControlRegister(void);
-        void clearRXnOVRFlags(void);
         uint8_t getInterrupts(void);
         uint8_t getInterruptMask(void);
+        uint8_t getStatus(void) const;
+        uint8_t errorCountRX(void) const;
+        uint8_t errorCountTX(void) const;
+
+        //
+        // Error clearing
+        //
+        void clearRXnOVRFlags(void);
         void clearInterrupts(void);
-        void clearTXInterrupts(void);
-        uint8_t getStatus(void);
         void clearRXnOVR(void);
         void clearMERR();
         void clearERRIF();
-        uint8_t errorCountRX(void);
-        uint8_t errorCountTX(void);
 };
 
 #endif

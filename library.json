@@ -1,0 +1,28 @@
+{
+  "name": "autowp-mcp2515",
+  "version": "2.0.0",
+  "description": "Arduino MCP2515 CAN interface library. This library with CAN-BUS Shield gives your Arduino/Seeeduino CAN-BUS capability.",
+  "keywords": ["can", "mcp2515", "spi", "can-bus"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brocci/arduino-mcp2515.git"
+  },
+  "authors": [
+    {
+      "name": "autowp",
+      "email": "autowp@gmail.com",
+      "url": "https://github.com/autowp"
+    },
+    {
+      "name": "Bruno Rocci",
+      "email": "bruno_rocci@yopmail.fr",
+      "url": "https://github.com/brocci",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/brocci/arduino-mcp2515",
+  "frameworks": "arduino",
+  "platforms": "*",
+  "headers": "mcp2515.h"
+}

@@ -575,6 +575,7 @@ class MCP2515
         ERROR setClkOut(const CAN_CLKOUT divisor);
         ERROR setBitrate(const CAN_SPEED canSpeed);
         ERROR setBitrate(const CAN_SPEED canSpeed, const CAN_CLOCK canClock);
+        ERROR setBitTiming(uint8_t cnf1, uint8_t cnf2, uint8_t cnf3);
 
         //
         // Filters & masks

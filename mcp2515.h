@@ -447,9 +447,10 @@ class MCP2515
             CANINTF  CANINTF_RXnIF;
         } RXB[N_RXBUFFERS];
 
-        uint8_t SPICS;
+    public:
+        uint8_t SPI_CS;
         uint32_t SPI_CLOCK;
-        SPIClass * SPIn;
+        SPIClass * SPI_PORT;
 
     private:
 

@@ -2,6 +2,7 @@ The MIT License (MIT)
 
 Copyright (c) 2013 Seeed Technology Inc.
 Copyright (c) 2016 Dmitry
+Copyright (c) 2026 Bruno Rocci (v2.0.0 enhancements)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -2,9 +2,7 @@ name: Arduino CLI Build
 
 on:
   push:
-    branches: [integration, master, ci/**]
   pull_request:
-    branches: [integration]
 
 concurrency:
   group: ${{ github.ref }}

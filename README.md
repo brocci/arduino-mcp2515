@@ -1,3 +1,14 @@
+> **📌 This is a fork** of [autowp/arduino-mcp2515](https://github.com/autowp/arduino-mcp2515)
+>
+> This fork ([brocci/arduino-mcp2515](https://github.com/brocci/arduino-mcp2515)) includes significant improvements:
+> - Software TX/RX circular queues to prevent message loss
+> - Corrected bit timing values for multiple crystal/baud combinations
+> - Enhanced interrupt handling and IRAM optimization for ESP8266 and ESP32
+> 
+> See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes in v2.0.0+
+
+---
+
 Arduino MCP2515 CAN interface library
 ---------------------------------------------------------
 [![Arduino CLI Build](https://github.com/brocci/arduino-mcp2515/actions/workflows/arduino-cli-ci.yml/badge.svg?branch=master)](https://github.com/brocci/arduino-mcp2515/actions/workflows/arduino-cli-ci.yml)

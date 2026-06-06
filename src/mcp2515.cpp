@@ -96,9 +96,9 @@ MCP2515::ERROR MCP2515::reset(void)
 
 void MCP2515::enableInterrupt(int intPin, void (*callback)(void)) {
     pinMode(intPin, INPUT_PULLUP);
-    // ESP8266 core v3.x removed usingInterrupt() from SPIClass.
+    // ESP8266 core v3.x and ESP32 core removed usingInterrupt() from SPIClass.
     // SPI interrupt safety relies on beginTransaction/endTransaction.
-#ifndef ARDUINO_ARCH_ESP8266
+#if !defined(ARDUINO_ARCH_ESP8266) && !defined(ARDUINO_ARCH_ESP32)
     SPI_PORT->usingInterrupt(digitalPinToInterrupt(intPin));
 #endif
     attachInterrupt(digitalPinToInterrupt(intPin), callback, FALLING);

@@ -1,0 +1,82 @@
+name: Arduino CLI Build
+
+on:
+  push:
+    branches: [integration, master, ci/**]
+  pull_request:
+    branches: [integration]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - fqbn: "arduino:avr:uno"
+            name: "Uno"
+            core: "arduino:avr"
+            url: ""
+          - fqbn: "esp32:esp32:esp32"
+            name: "ESP32"
+            core: "esp32:esp32"
+            url: "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
+          - fqbn: "esp8266:esp8266:generic"
+            name: "ESP8266"
+            core: "esp8266:esp8266"
+            url: "https://arduino.esp8266.com/stable/package_esp8266com_index.json"
+          - fqbn: "rp2040:rp2040:rpipico"
+            name: "RP2040"
+            core: "rp2040:rp2040"
+            url: "https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Arduino cores
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: arduino-cli-${{ runner.os }}-${{ matrix.board.name }}-${{ hashFiles('**/library.properties') }}
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Install library
+        run: |
+          mkdir -p ~/Arduino/libraries/autowp-mcp2515
+          cp -r . ~/Arduino/libraries/autowp-mcp2515/
+
+      - name: Configure board URL
+        if: matrix.board.url != ''
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls "${{ matrix.board.url }}"
+
+      - name: Install board core
+        run: arduino-cli core install ${{ matrix.board.core }}
+      
+      - name: Compile ${{ matrix.board.name }} examples
+        run: |
+          echo "=== Board: ${{ matrix.board.name }} (${{ matrix.board.fqbn }}) ==="
+          echo ""
+          echo "=== Available sketches ==="
+          find examples -name "*.ino" -type f
+          echo ""
+          echo "=== Starting compilation ==="
+          for sketch_file in examples/*/*.ino; do
+            if [ -f "$sketch_file" ]; then
+              sketch_dir=$(dirname "$sketch_file")
+              echo ""
+              echo ">>> Compiling: $sketch_dir"
+              arduino-cli compile -v --fqbn "${{ matrix.board.fqbn }}" "$sketch_dir" || exit 1
+            fi
+          done
+          echo ""
+          echo "=== All compilations successful ==="

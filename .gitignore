@@ -83,3 +83,6 @@ tmbootpicker.efi
 .pio
 .pioenvs
 .piolibdeps
+
+#
+notes/

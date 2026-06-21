@@ -543,7 +543,8 @@ class MCP2515
 
         CircularQueue<struct can_frame, MCP2515_TX_QUEUE_SIZE> _txQueue;
         CircularQueue<struct can_frame, MCP2515_RX_QUEUE_SIZE> _rxQueue;
-        volatile bool _interruptPending;
+        volatile bool _rxInterruptPending;
+        volatile bool _txInterruptPending;
 
     public:
         //

@@ -24,7 +24,8 @@ MCP2515::MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK, SPIClass * _SPI)
     SPI_CS = _CS;
     SPI_CLOCK = _SPI_CLOCK;
 
-    _interruptPending = false;
+    _rxInterruptPending = false;
+    _txInterruptPending = false;
 }
 
 void MCP2515::begin() {
@@ -148,35 +149,7 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     if (canintf & (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF)) {
         modifyRegisterRaw(MCP_CANINTF,
             CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF, 0);
-
-        struct can_frame frame;
-        while (_txQueue.peek(frame)) {
-            bool sent = false;
-
-            for (int i = 0; i < N_TXBUFFERS; i++) {
-                const struct TXBn_REGS *txbuf = &TXB[i];
-                uint8_t ctrlval = readRegisterRaw(txbuf->CTRL);
-                if ((ctrlval & TXB_TXREQ) == 0) {
-                    uint8_t data[13];
-                    bool ext = (frame.can_id & CAN_EFF_FLAG);
-                    bool rtr = (frame.can_id & CAN_RTR_FLAG);
-                    uint32_t id = (frame.can_id & (ext ? CAN_EFF_MASK : CAN_SFF_MASK));
-
-                    prepareId(data, ext, id);
-                    data[MCP_DLC] = rtr ? (frame.can_dlc | RTR_MASK) : frame.can_dlc;
-                    memcpy(&data[MCP_DATA], frame.data, frame.can_dlc);
-                    setRegistersRaw(txbuf->SIDH, data, 5 + frame.can_dlc);
-                    modifyRegisterRaw(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
-
-                    sent = true;
-                    break;
-                }
-            }
-
-            if (!sent) break;
-
-            _txQueue.pop(frame);
-        }
+        _txInterruptPending = true;
     }
 
     if (canintf & (CANINTF_ERRIF | CANINTF_MERRF)) {
@@ -188,7 +161,7 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     }
 
     endSPI();
-    _interruptPending = true;
+    _rxInterruptPending = true;
 }
 
 uint8_t MCP2515::readRegister(const REGISTER reg) const
@@ -586,25 +559,14 @@ MCP2515::ERROR MCP2515::sendMessageDirect(const struct can_frame *frame)
 bool MCP2515::processTxQueue(void)
 {
     struct can_frame frame;
-    while (!_txQueue.isEmpty()) {
-        noInterrupts();
-        bool popped = _txQueue.peek(frame);
-        interrupts();
-
-        if (!popped) {
-            break;
-        }
-
+    while (_txQueue.peek(frame)) {
         ERROR result = sendMessageDirect(&frame);
         if (result != ERROR_OK) {
-            return false;  // HW buffers full, retry later
+            return false;
         }
-
-        noInterrupts();
         _txQueue.pop(frame);
-        interrupts();
     }
-    return true;  // Queue empty
+    return true;
 }
 
 MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
@@ -647,9 +609,15 @@ MCP2515::ERROR MCP2515::readMessage(const RXBn rxbn, struct can_frame *frame)
 MCP2515::ERROR MCP2515::readMessage(struct can_frame *frame)
 {
     // If interrupt flagged, drain HW buffers into queue
-    if (_interruptPending) {
-        _interruptPending = false;
+    if (_rxInterruptPending) {
+        _rxInterruptPending = false;
         drainRxBuffers();
+    }
+
+    // If TX buffer freed, drain software TX queue into hardware
+    if (_txInterruptPending) {
+        _txInterruptPending = false;
+        while (processTxQueue());
     }
 
     // Read from software queue first
@@ -680,7 +648,7 @@ bool MCP2515::checkReceive(void)
     }
 
     // Check interrupt flag
-    if (_interruptPending) {
+    if (_rxInterruptPending) {
         return true;
     }
 

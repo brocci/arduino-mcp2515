@@ -339,6 +339,15 @@ class MCP2515
             EFLG_EWARN  = (1<<0)
         };
 
+        enum CAN_MODE : uint8_t {
+            CAN_MODE_CONFIG,
+            CAN_MODE_NORMAL,
+            CAN_MODE_LOOPBACK,
+            CAN_MODE_LISTEN_ONLY,
+            CAN_MODE_SLEEP,
+            CAN_MODE_ONE_SHOT
+        };
+
     private:
         static const uint8_t CANCTRL_REQOP = 0xE0;
         static const uint8_t CANCTRL_ABAT = 0x10;
@@ -548,6 +557,18 @@ class MCP2515
         uint16_t _rxQueueDropCount;
         uint16_t _rxHardwareOverflowCount;
 
+        ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
+        ERROR sendMessageDirect(const struct can_frame *frame);
+        ERROR readMessage(const RXBn rxbn, struct can_frame *frame);
+        bool processTxQueue(void);
+        uint8_t drainRxBuffers(void);
+
+        uint8_t readRegisterRaw(const REGISTER reg);
+        void readRegistersRaw(const REGISTER reg, uint8_t values[], const uint8_t n);
+        void setRegistersRaw(const REGISTER reg, const uint8_t values[], const uint8_t n);
+        void modifyRegisterRaw(const REGISTER reg, const uint8_t mask, const uint8_t data);
+        uint8_t getStatusRaw(void);
+
     public:
         //
         // Lifecycle
@@ -563,18 +584,9 @@ class MCP2515
         void handleInterrupt(void);
 
         //
-        // Operating modes
+        // Mode & configuration
         //
-        ERROR setConfigMode();
-        ERROR setListenOnlyMode();
-        ERROR setSleepMode();
-        ERROR setLoopbackMode();
-        ERROR setNormalMode();
-        ERROR setNormalOneShotMode();
-
-        //
-        // Bit timing & clock
-        //
+        ERROR setOperatingMode(const CAN_MODE mode);
         ERROR setClkOut(const CAN_CLKOUT divisor);
         ERROR setBitrate(const CAN_SPEED canSpeed);
         ERROR setBitrate(const CAN_SPEED canSpeed, const CAN_CLOCK canClock);
@@ -587,22 +599,11 @@ class MCP2515
         ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData);
 
         //
-        // Transmit
+        // Message I/O
         //
-        ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
         ERROR sendMessage(const struct can_frame *frame);
-        ERROR sendMessageDirect(const struct can_frame *frame);
-        bool processTxQueue(void);
-        uint8_t getTxQueueDepth(void) const { return _txQueue.getCount(); }
-
-        //
-        // Receive
-        //
-        ERROR readMessage(const RXBn rxbn, struct can_frame *frame);
         ERROR readMessage(struct can_frame *frame);
         bool checkReceive(void);
-        uint8_t drainRxBuffers(void);
-        uint8_t getRxQueueDepth(void) const { return _rxQueue.getCount(); }
 
         //
         // Diagnostics
@@ -615,6 +616,8 @@ class MCP2515
         uint8_t getStatus(void) const;
         uint8_t errorCountRX(void) const;
         uint8_t errorCountTX(void) const;
+        uint8_t getTxQueueDepth(void) const { return _txQueue.getCount(); }
+        uint8_t getRxQueueDepth(void) const { return _rxQueue.getCount(); }
         uint16_t getRxQueueDropCount() const;
         uint16_t getRxHardwareOverflowCount() const;
 
@@ -626,15 +629,6 @@ class MCP2515
         void clearRXnOVR(void);
         void clearMERR();
         void clearERRIF();
-
-        //
-        // ISR-context register access (SPI transaction must be active)
-        //
-        uint8_t readRegisterRaw(const REGISTER reg);
-        void readRegistersRaw(const REGISTER reg, uint8_t values[], const uint8_t n);
-        void setRegistersRaw(const REGISTER reg, const uint8_t values[], const uint8_t n);
-        void modifyRegisterRaw(const REGISTER reg, const uint8_t mask, const uint8_t data);
-        uint8_t getStatusRaw(void);
 };
 
 #endif

@@ -34,7 +34,7 @@ void setup() {
   
   mcp2515.reset();
   mcp2515.setBitrate(CAN_125KBPS);
-  mcp2515.setNormalMode();
+  mcp2515.setOperatingMode(MCP2515::CAN_MODE_NORMAL);
   
   Serial.println("Example: Write to CAN");
 }

@@ -204,34 +204,19 @@ uint8_t MCP2515::getStatus(void) const
     return i;
 }
 
-MCP2515::ERROR MCP2515::setConfigMode()
+MCP2515::ERROR MCP2515::setOperatingMode(const CAN_MODE mode)
 {
-    return setMode(CANCTRL_REQOP_CONFIG);
-}
-
-MCP2515::ERROR MCP2515::setListenOnlyMode()
-{
-    return setMode(CANCTRL_REQOP_LISTENONLY);
-}
-
-MCP2515::ERROR MCP2515::setSleepMode()
-{
-    return setMode(CANCTRL_REQOP_SLEEP);
-}
-
-MCP2515::ERROR MCP2515::setLoopbackMode()
-{
-    return setMode(CANCTRL_REQOP_LOOPBACK);
-}
-
-MCP2515::ERROR MCP2515::setNormalMode()
-{
-    return setMode(CANCTRL_REQOP_NORMAL);
-}
-
-MCP2515::ERROR MCP2515::setNormalOneShotMode()
-{
-    return setMode(CANCTRL_REQOP_OSM);
+    CANCTRL_REQOP_MODE hwMode;
+    switch (mode) {
+        case CAN_MODE_CONFIG:     hwMode = CANCTRL_REQOP_CONFIG; break;
+        case CAN_MODE_NORMAL:     hwMode = CANCTRL_REQOP_NORMAL; break;
+        case CAN_MODE_LOOPBACK:   hwMode = CANCTRL_REQOP_LOOPBACK; break;
+        case CAN_MODE_LISTEN_ONLY: hwMode = CANCTRL_REQOP_LISTENONLY; break;
+        case CAN_MODE_SLEEP:      hwMode = CANCTRL_REQOP_SLEEP; break;
+        case CAN_MODE_ONE_SHOT:   hwMode = CANCTRL_REQOP_OSM; break;
+        default:                  return ERROR_FAIL;
+    }
+    return setMode(hwMode);
 }
 
 MCP2515::ERROR MCP2515::setMode(const CANCTRL_REQOP_MODE mode)
@@ -330,7 +315,7 @@ static const BitTimingEntry BIT_TIMING_20MHz[16] = {
 
 MCP2515::ERROR MCP2515::setBitrate(const CAN_SPEED canSpeed, CAN_CLOCK canClock)
 {
-    ERROR error = setConfigMode();
+    ERROR error = setMode(CANCTRL_REQOP_CONFIG);
     if (error != ERROR_OK) {
         return error;
     }
@@ -356,7 +341,7 @@ MCP2515::ERROR MCP2515::setBitrate(const CAN_SPEED canSpeed, CAN_CLOCK canClock)
 
 MCP2515::ERROR MCP2515::setBitTiming(uint8_t cnf1, uint8_t cnf2, uint8_t cnf3)
 {
-    ERROR error = setConfigMode();
+    ERROR error = setMode(CANCTRL_REQOP_CONFIG);
     if (error != ERROR_OK) {
         return error;
     }
@@ -412,7 +397,7 @@ void MCP2515::prepareId(uint8_t *buffer, const bool ext, const uint32_t id)
 
 MCP2515::ERROR MCP2515::setFilterMask(const MASK mask, const bool ext, const uint32_t ulData)
 {
-    ERROR res = setConfigMode();
+    ERROR res = setMode(CANCTRL_REQOP_CONFIG);
     if (res != ERROR_OK) {
         return res;
     }
@@ -435,7 +420,7 @@ MCP2515::ERROR MCP2515::setFilterMask(const MASK mask, const bool ext, const uin
 
 MCP2515::ERROR MCP2515::setFilter(const RXF num, const bool ext, const uint32_t ulData)
 {
-    ERROR res = setConfigMode();
+    ERROR res = setMode(CANCTRL_REQOP_CONFIG);
     if (res != ERROR_OK) {
         return res;
     }
@@ -694,12 +679,7 @@ uint8_t MCP2515::getControlRegister(void)
 
 void MCP2515::clearRXnOVRFlags(void)
 {
-	modifyRegister(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
-}
-
-uint8_t MCP2515::getInterrupts(void)
-{
-    return readRegister(MCP_CANINTF);
+    modifyRegister(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
 }
 
 void MCP2515::clearInterrupts(void)
@@ -707,34 +687,33 @@ void MCP2515::clearInterrupts(void)
     setRegister(MCP_CANINTF, 0);
 }
 
-uint8_t MCP2515::getInterruptMask(void)
-{
-    return readRegister(MCP_CANINTE);
-}
-
 void MCP2515::clearRXnOVR(void)
 {
-	uint8_t eflg = getErrorFlags();
-	if (eflg != 0) {
-		clearRXnOVRFlags();
-		clearInterrupts();
-		//modifyRegister(MCP_CANINTF, CANINTF_ERRIF, 0);
-	}
-	
+    uint8_t eflg = getErrorFlags();
+    if (eflg != 0) {
+        clearRXnOVRFlags();
+        clearInterrupts();
+    }
 }
 
 void MCP2515::clearMERR()
 {
-	//modifyRegister(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
-	//clearInterrupts();
-	modifyRegister(MCP_CANINTF, CANINTF_MERRF, 0);
+    modifyRegister(MCP_CANINTF, CANINTF_MERRF, 0);
 }
 
 void MCP2515::clearERRIF()
 {
-    //modifyRegister(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
-    //clearInterrupts();
     modifyRegister(MCP_CANINTF, CANINTF_ERRIF, 0);
+}
+
+uint8_t MCP2515::getInterrupts(void)
+{
+    return readRegister(MCP_CANINTF);
+}
+
+uint8_t MCP2515::getInterruptMask(void)
+{
+    return readRegister(MCP_CANINTE);
 }
 
 uint8_t MCP2515::errorCountRX(void) const

@@ -279,6 +279,23 @@ MCP2515::ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData)
 Example implementation of CanHacker (lawicel) protocol based device: [https://github.com/autowp/can-usb](https://github.com/autowp/can-usb)
 
 
+## RX Queue Saturation Monitoring
+
+The library provides two counters to detect message loss due to RX buffer saturation:
+
+- **`getRxQueueDropCount()`** — Incremented when a frame read from the MCP2515 hardware buffer cannot be enqueued in the software RX queue (queue full). Indicates the application is not consuming frames fast enough.
+- **`getRxHardwareOverflowCount()`** — Incremented when the MCP2515 reports a hardware overflow (EFLG_RX0OVR or EFLG_RX1OVR). Indicates the bus is transmitting faster than the controller can offload frames via SPI.
+
+Both counters are `uint16_t` (range 0–65535) and are cleared on `reset()` or overflow. Query them periodically in your application loop to monitor RX health:
+
+```C++
+uint16_t drops = mcp2515.getRxQueueDropCount();
+uint16_t overflows = mcp2515.getRxHardwareOverflowCount();
+if (drops > 0 || overflows > 0) {
+    // Log or signal degraded RX performance
+}
+```
+
 For more information, please refer to [wiki page](http://www.seeedstudio.com/wiki/CAN-BUS_Shield) .
 
 

@@ -26,6 +26,8 @@ MCP2515::MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK, SPIClass * _SPI)
 
     _rxInterruptPending = false;
     _txInterruptPending = false;
+    _rxQueueDropCount = 0;
+    _rxHardwareOverflowCount = 0;
 }
 
 void MCP2515::begin() {
@@ -94,6 +96,8 @@ MCP2515::ERROR MCP2515::reset(void)
 
     _txQueue.clear();
     _rxQueue.clear();
+    _rxQueueDropCount = 0;
+    _rxHardwareOverflowCount = 0;
 
     return ERROR_OK;
 }
@@ -128,6 +132,7 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     if (canintf & (CANINTF_ERRIF | CANINTF_MERRF)) {
         uint8_t eflg = readRegisterRaw(MCP_EFLG);
         if (eflg & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+            _rxHardwareOverflowCount++;
             modifyRegisterRaw(MCP_EFLG, eflg & (EFLG_RX0OVR | EFLG_RX1OVR), 0);
         }
         modifyRegisterRaw(MCP_CANINTF, canintf & (CANINTF_ERRIF | CANINTF_MERRF), 0);
@@ -667,6 +672,7 @@ uint8_t MCP2515::drainRxBuffers(void)
         if (_rxQueue.push(frame)) {
             drained++;
         } else {
+            _rxQueueDropCount++;
             interrupts();
             break;
         }
@@ -739,6 +745,16 @@ uint8_t MCP2515::errorCountRX(void) const
 uint8_t MCP2515::errorCountTX(void) const
 {
     return readRegister(MCP_TEC);
+}
+
+uint16_t MCP2515::getRxQueueDropCount() const
+{
+    return _rxQueueDropCount;
+}
+
+uint16_t MCP2515::getRxHardwareOverflowCount() const
+{
+    return _rxHardwareOverflowCount;
 }
 
 //

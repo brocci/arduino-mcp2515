@@ -545,6 +545,8 @@ class MCP2515
         CircularQueue<struct can_frame, MCP2515_RX_QUEUE_SIZE> _rxQueue;
         volatile bool _rxInterruptPending;
         volatile bool _txInterruptPending;
+        uint16_t _rxQueueDropCount;
+        uint16_t _rxHardwareOverflowCount;
 
     public:
         //
@@ -613,6 +615,8 @@ class MCP2515
         uint8_t getStatus(void) const;
         uint8_t errorCountRX(void) const;
         uint8_t errorCountTX(void) const;
+        uint16_t getRxQueueDropCount() const;
+        uint16_t getRxHardwareOverflowCount() const;
 
         //
         // Error clearing

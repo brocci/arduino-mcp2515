@@ -112,38 +112,8 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     uint8_t canintf = readRegisterRaw(MCP_CANINTF);
 
     if (canintf & (CANINTF_RX0IF | CANINTF_RX1IF)) {
-        struct can_frame frame;
-        for (int i = 0; i < 2; i++) {
-            uint8_t stat = getStatusRaw();
-            if (!(stat & STAT_RXIF_MASK)) break;
-
-            uint8_t rxb_idx = (stat & STAT_RX0IF) ? 0 : 1;
-            const struct RXBn_REGS *rxb = &RXB[rxb_idx];
-
-            uint8_t tbufdata[5];
-            readRegistersRaw(rxb->SIDH, tbufdata, 5);
-
-            uint32_t id = (tbufdata[MCP_SIDH]<<3) + (tbufdata[MCP_SIDL]>>5);
-            if (tbufdata[MCP_SIDL] & TXB_EXIDE_MASK) {
-                id = (id<<2) + (tbufdata[MCP_SIDL] & 0x03);
-                id = (id<<8) + tbufdata[MCP_EID8];
-                id = (id<<8) + tbufdata[MCP_EID0];
-                id |= CAN_EFF_FLAG;
-            }
-
-            uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
-            if (dlc > CAN_MAX_DLEN) dlc = CAN_MAX_DLEN;
-
-            frame.can_id = id;
-            frame.can_dlc = dlc;
-            readRegistersRaw(rxb->DATA, frame.data, dlc);
-
-            modifyRegisterRaw(MCP_CANINTF, rxb->CANINTF_RXnIF, 0);
-
-            if (!_rxQueue.isFull()) {
-                _rxQueue.push(frame);
-            }
-        }
+        modifyRegisterRaw(MCP_CANINTF, CANINTF_RX0IF | CANINTF_RX1IF, 0);
+        _rxInterruptPending = true;
     }
 
     if (canintf & (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF)) {
@@ -161,7 +131,6 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     }
 
     endSPI();
-    _rxInterruptPending = true;
 }
 
 uint8_t MCP2515::readRegister(const REGISTER reg) const

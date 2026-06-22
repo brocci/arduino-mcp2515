@@ -67,12 +67,15 @@ Component References:
 
 To create connection with MCP2515 provide pin number where SPI CS is connected (10 by default), baudrate and mode
 
-The available modes are listed as follows:
+Use `setOperatingMode()` with one of the `CAN_MODE` values:
+
 ```C++
-mcp2515.setNormalMode(); // sends and receives data normally, sends acknowledgments to other nodes, when sending data, requires an acknowledgment from another node that the message was received or else, the 2515 will autonomously keep sending the same data
-mcp2515.setNormalOneShotMode(); // sends and receives data normally, sends acknoledgements to other nodes that their message was received, when sending data, does not require an acknowledgement from another node that the message was received.
-mcp2515.setLoopbackMode(); // data sent is immediately received and is not written to the bus, does not send acknowledgements
-mcp2515.setListenOnlyMode(); // does not send data, only receives data, does not send acknowledgements
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_NORMAL);       // sends and receives data normally, sends acknowledgments
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_ONE_SHOT);     // like NORMAL but does not retry on failure
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_LOOPBACK);     // data sent is immediately received, not written to bus
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_LISTEN_ONLY);  // receive only, no acknowledgments sent
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_SLEEP);        // low-power sleep mode
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_CONFIG);       // configuration mode for bit timing and filters
 ```
 The available baudrates are listed as follows:
 ```C++
@@ -103,7 +106,7 @@ Example of initialization
 MCP2515 mcp2515(10);
 mcp2515.reset();
 mcp2515.setBitrate(CAN_125KBPS);
-mcp2515.setLoopbackMode();
+mcp2515.setOperatingMode(MCP2515::CAN_MODE_LOOPBACK);
 ```
 
 <br>
@@ -156,11 +159,10 @@ For additional information see [SocketCAN](https://www.kernel.org/doc/Documentat
 ## Send Data
 
 ```C++
-MCP2515::ERROR sendMessage(const MCP2515::TXBn txbn, const struct can_frame *frame);
 MCP2515::ERROR sendMessage(const struct can_frame *frame);
 ```
 
-This is a function to send data onto the bus.
+Messages are queued in a software TX queue and drained to hardware transmit buffers. If hardware buffers are full, the message is enqueued automatically.
 
 For example, In the 'send' example, we have:
 
@@ -178,6 +180,8 @@ tell other devices this is a standard frame from 0x00. */
 mcp2515.sendMessage(&frame);
 ```
 
+Extended frames use the `CAN_EFF_FLAG`:
+
 ```C++
 struct can_frame frame;
 frame.can_id = 0x12345678 | CAN_EFF_FLAG;
@@ -185,27 +189,24 @@ frame.can_dlc = 2;
 frame.data[0] = 0xFF;
 frame.data[1] = 0xFF;
 
-/* send out the message to the bus using second TX buffer and
+/* send out the message to the bus and
 tell other devices this is a extended frame from 0x12345678. */
-mcp2515.sendMessage(MCP2515::TXB1, &frame);
+mcp2515.sendMessage(&frame);
 ```
 
 
 
 ## Receive Data
 
-The following function is used to receive data on the 'receive' node:
-
 ```C++
-MCP2515::ERROR readMessage(const MCP2515::RXBn rxbn, struct can_frame *frame);
 MCP2515::ERROR readMessage(struct can_frame *frame);
 ```
 
-In conditions that masks and filters have been set. This function can only get frames that meet the requirements of masks and filters.
+Frames are read from the software RX queue (populated by the interrupt handler). If the queue is empty, the hardware receive buffers are checked directly.
 
-You can choose one of two method to receive: interrupt-based and polling
+In conditions that masks and filters have been set, this function can only get frames that meet the requirements of masks and filters.
 
-Example of poll read
+Polling example:
 
 ```C++
 struct can_frame frame;
@@ -217,38 +218,23 @@ void loop() {
 }
 ```
 
-Example of interrupt based read
+Interrupt-driven example using the library helper:
 
 ```C++
-volatile bool interrupt = false;
-struct can_frame frame;
+MCP2515 mcp2515(10);
 
-void irqHandler() {
-    interrupt = true;
+void canISR(void) {
+    mcp2515.handleInterrupt();
 }
 
 void setup() {
     ...
-    attachInterrupt(0, irqHandler, FALLING);
+    mcp2515.enableInterrupt(2, canISR);
 }
 
 void loop() {
-    if (interrupt) {
-        interrupt = false;
-
-        uint8_t irq = mcp2515.getInterrupts();
-
-        if (irq & MCP2515::CANINTF_RX0IF) {
-            if (mcp2515.readMessage(MCP2515::RXB0, &frame) == MCP2515::ERROR_OK) {
-                // frame contains received from RXB0 message
-            }
-        }
-
-        if (irq & MCP2515::CANINTF_RX1IF) {
-            if (mcp2515.readMessage(MCP2515::RXB1, &frame) == MCP2515::ERROR_OK) {
-                // frame contains received from RXB1 message
-            }
-        }
+    if (mcp2515.readMessage(&frame) == MCP2515::ERROR_OK) {
+        // frame contains received message
     }
 }
 ```
@@ -276,25 +262,17 @@ MCP2515::ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData)
 
 ## Examples
 
-Example implementation of CanHacker (lawicel) protocol based device: [https://github.com/autowp/can-usb](https://github.com/autowp/can-usb)
+All examples are in the `examples/` directory.
 
-
-## RX Queue Saturation Monitoring
-
-The library provides two counters to detect message loss due to RX buffer saturation:
-
-- **`getRxQueueDropCount()`** — Incremented when a frame read from the MCP2515 hardware buffer cannot be enqueued in the software RX queue (queue full). Indicates the application is not consuming frames fast enough.
-- **`getRxHardwareOverflowCount()`** — Incremented when the MCP2515 reports a hardware overflow (EFLG_RX0OVR or EFLG_RX1OVR). Indicates the bus is transmitting faster than the controller can offload frames via SPI.
-
-Both counters are `uint16_t` (range 0–65535) and are cleared on `reset()` or overflow. Query them periodically in your application loop to monitor RX health:
-
-```C++
-uint16_t drops = mcp2515.getRxQueueDropCount();
-uint16_t overflows = mcp2515.getRxHardwareOverflowCount();
-if (drops > 0 || overflows > 0) {
-    // Log or signal degraded RX performance
-}
-```
+| Example | Demonstrates |
+|---------|-------------|
+| `CAN_write` | Basic send — construct frames and transmit on bus |
+| `CAN_read` | Basic receive — poll `readMessage()` in loop |
+| `CAN_interrupt` | Interrupt-driven receive using `enableInterrupt()` + `handleInterrupt()` |
+| `CAN_loopback_test` | Self-test in loopback mode — send and verify reception without bus hardware |
+| `CAN_queue_monitor` | Queue health diagnostics — `getTxQueueDepth()`, `getRxQueueDepth()`, `getRxQueueDropCount()`, `getRxHardwareOverflowCount()` |
+| `CAN_error_handling` | Error flag inspection with `checkError()`, `getErrorFlags()`, `clearErrors()` |
+| `CAN_SpeedTest` | Throughput measurement — messages received per second |
 
 For more information, please refer to [wiki page](http://www.seeedstudio.com/wiki/CAN-BUS_Shield) .
 

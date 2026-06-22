@@ -279,16 +279,7 @@ For more information, please refer to [wiki page](http://www.seeedstudio.com/wik
 
 ----
 
-This software is written by loovee ([luweicong@seeed.cc](luweicong@seeed.cc "luweicong@seeed.cc")) for seeed studio,<br>
-Updated by Dmitry ([https://github.com/autowp](https://github.com/autowp "https://github.com/autowp"))<br>
-and is licensed under [The MIT License](http://opensource.org/licenses/mit-license.php). Check [LICENSE.md](LICENSE.md) for more information.<br>
+This fork is based on [autowp/arduino-mcp2515](https://github.com/autowp/arduino-mcp2515),<br>
+which was originally written by loovee for Seeed Studio. Licensed under [The MIT License](LICENSE.md).<br>
 
-Contributing to this software is warmly welcomed. You can do this basically by<br>
-[forking](https://help.github.com/articles/fork-a-repo), committing modifications and then [pulling requests](https://help.github.com/articles/using-pull-requests) (follow the links above<br>
-for operating guide). Adding change log and your contact into file header is encouraged.<br>
-Thanks for your contribution.
-
-Seeed Studio is an open hardware facilitation company based in Shenzhen, China. <br>
-Benefiting from local manufacture power and convenient global logistic system, <br>
-we integrate resources to serve new era of innovation. Seeed also works with <br>
-global distributors and partners to push open hardware movement.<br>
+Contributions are welcome — see [CHANGELOG.md](CHANGELOG.md) for recent work and open issues for current tasks.<br>

@@ -92,6 +92,9 @@ MCP2515::ERROR MCP2515::reset(void)
         }
     }
 
+    _txQueue.clear();
+    _rxQueue.clear();
+
     return ERROR_OK;
 }
 

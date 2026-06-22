@@ -14,6 +14,25 @@ All notable changes to this project are documented in this file.
 - `static_assert(SIZE <= 255)` in `CircularQueue` — catches oversized queues
   at compile time
 
+## [2.1.0] - 2026-06-23
+
+### Added
+- `CAN_MODE` enum with `CAN_MODE_CONFIG`, `NORMAL`, `LOOPBACK`, `LISTEN_ONLY`, `SLEEP`, `ONE_SHOT`
+- `setOperatingMode(CAN_MODE)` — single method replacing 6 individual mode methods
+
+- Overflow diagnostics: `getRxQueueDropCount()`, `getRxHardwareOverflowCount()`
+- 4 new examples:
+  - `CAN_interrupt` — interrupt-driven receive
+  - `CAN_loopback_test` — self-test without CAN hardware
+  - `CAN_queue_monitor` — queue depth and overflow diagnostics
+  - `CAN_error_handling` — error flag inspection and recovery
+
+### Changed
+- API surface reduced: queue internals (`sendMessageDirect`, `processTxQueue`, `drainRxBuffers`) and raw register access (`*Raw()` methods) moved to private
+- Buffer-specific `sendMessage(TXBn,…)` and `readMessage(RXBn,…)` moved to private
+
+- Public sections reorganized: Mode & configuration, Message I/O, Diagnostics, Error handling
+
 ## [2.0.0] - 2026-06-05
 
 ### Added

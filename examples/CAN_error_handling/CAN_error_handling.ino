@@ -1,0 +1,43 @@
+#include <SPI.h>
+#include <mcp2515.h>
+
+struct can_frame canMsg;
+MCP2515 mcp2515(10);
+
+void setup() {
+    Serial.begin(115200);
+
+    mcp2515.reset();
+    mcp2515.setBitrate(CAN_125KBPS);
+    mcp2515.setOperatingMode(MCP2515::CAN_MODE_NORMAL);
+
+    Serial.println("------- CAN Error Handling ----------");
+}
+
+void loop() {
+    mcp2515.readMessage(&canMsg);
+
+    if (mcp2515.checkError()) {
+        uint8_t eflg = mcp2515.getErrorFlags();
+        Serial.print("Error flags: 0x");
+        Serial.println(eflg, HEX);
+
+        if (eflg & MCP2515::EFLG_RX0OVR || eflg & MCP2515::EFLG_RX1OVR) {
+            Serial.println("  RX buffer overflow");
+        }
+        if (eflg & MCP2515::EFLG_TXBO) {
+            Serial.println("  Bus-off");
+        }
+        if (eflg & MCP2515::EFLG_TXEP || eflg & MCP2515::EFLG_RXEP) {
+            Serial.println("  Error-passive");
+        }
+        if (eflg & MCP2515::EFLG_TXWAR || eflg & MCP2515::EFLG_RXWAR) {
+            Serial.println("  Warning threshold reached");
+        }
+
+        mcp2515.clearErrors();
+        Serial.println("Errors cleared");
+    }
+
+    delay(5000);
+}

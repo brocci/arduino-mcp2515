@@ -61,7 +61,7 @@ MCP2515::ERROR MCP2515::reset(void)
     setRegister(MCP_RXB0CTRL, 0);
     setRegister(MCP_RXB1CTRL, 0);
 
-    setRegister(MCP_CANINTE, CANINTF_RX0IF | CANINTF_RX1IF);
+    setRegister(MCP_CANINTE, CANINTF_RX0IF | CANINTF_RX1IF | CANINTF_ERRIF | CANINTF_MERRF);
 
     // receives all valid messages using either Standard or Extended Identifiers that
     // meet filter criteria. RXF0 is applied for RXB0, RXF1 is applied for RXB1

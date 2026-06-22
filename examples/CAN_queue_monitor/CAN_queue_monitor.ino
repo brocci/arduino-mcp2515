@@ -1,3 +1,15 @@
+// CAN_queue_monitor — detect and report RX/TX queue saturation
+// Demonstrates: getTxQueueDepth(), getRxQueueDepth(),
+//   getRxQueueDropCount(), getRxHardwareOverflowCount()
+//
+// The library uses software queues to absorb short bursts of traffic.
+// If the application cannot consume frames fast enough, the RX queue
+// fills and frames are dropped. These counters help you detect that.
+//
+// Rising drop/overflow counts indicate the system is being overloaded.
+// Possible mitigations: increase queue sizes (compile-time defines),
+// process frames faster, or use interrupt-driven reception.
+
 #include <SPI.h>
 #include <mcp2515.h>
 
@@ -12,11 +24,14 @@ void setup() {
     mcp2515.setOperatingMode(MCP2515::CAN_MODE_NORMAL);
 
     Serial.println("------- CAN Queue Monitor ----------");
+    Serial.println("Reporting queue depth and drops every 5 seconds");
 }
 
 void loop() {
+    // Keep the RX queue drained
     mcp2515.readMessage(&canMsg);
 
+    // Report every 5 seconds
     static unsigned long lastReport = 0;
     if ((millis() - lastReport) > 5000) {
         lastReport = millis();
@@ -34,5 +49,10 @@ void loop() {
         Serial.print(drops);
         Serial.print("  HW overflows: ");
         Serial.println(hwOvf);
+
+        // Non-zero drops or overflows indicate message loss
+        if (drops > 0 || hwOvf > 0) {
+            Serial.println("WARNING: frame loss detected");
+        }
     }
 }

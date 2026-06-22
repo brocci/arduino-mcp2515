@@ -664,10 +664,13 @@ uint8_t MCP2515::drainRxBuffers(void)
         if (rc != ERROR_OK) break;
 
         noInterrupts();
-        _rxQueue.push(frame);
+        if (_rxQueue.push(frame)) {
+            drained++;
+        } else {
+            interrupts();
+            break;
+        }
         interrupts();
-
-        drained++;
     }
 
     return drained;

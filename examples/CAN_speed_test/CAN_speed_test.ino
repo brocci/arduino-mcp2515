@@ -1,4 +1,4 @@
-// CAN_SpeedTest — measure CAN bus throughput
+// CAN_speed_test — measure CAN bus throughput
 // Demonstrates: readMessage() throughput tracking, millis() timing
 
 #include <SPI.h>

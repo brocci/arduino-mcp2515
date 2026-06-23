@@ -59,7 +59,7 @@ Component References:
 
 ## Library Installation
 
-1. Download the ZIP file from https://github.com/autowp/arduino-mcp2515/archive/master.zip
+1. Download the ZIP file from https://github.com/brocci/arduino-mcp2515/archive/master.zip
 2. From the Arduino IDE: Sketch -> Include Library... -> Add .ZIP Library...
 3. Restart the Arduino IDE to see the new "mcp2515" library with examples
 
@@ -271,10 +271,10 @@ All examples are in the `examples/` directory.
 | `CAN_interrupt` | Interrupt-driven receive using `enableInterrupt()` + `handleInterrupt()` |
 | `CAN_loopback_test` | Self-test in loopback mode — send and verify reception without bus hardware |
 | `CAN_queue_monitor` | Queue health diagnostics — `getTxQueueDepth()`, `getRxQueueDepth()`, `getRxQueueDropCount()`, `getRxHardwareOverflowCount()` |
-| `CAN_error_handling` | Error flag inspection with `checkError()`, `getErrorFlags()`, `clearErrors()` |
-| `CAN_SpeedTest` | Throughput measurement — messages received per second |
+| `CAN_error_handling` | Error flag inspection with `checkError()`, `getErrorFlags()`, `clearRXnOVR()` |
+| `CAN_speed_test` | Throughput measurement — messages received per second |
 
-For more information, please refer to [wiki page](http://www.seeedstudio.com/wiki/CAN-BUS_Shield) .
+For more information, please refer to the [MCP2515 datasheet](https://www.microchip.com/wwwproducts/en/MCP2515) .
 
 
 ----

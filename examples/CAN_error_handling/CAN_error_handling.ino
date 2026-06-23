@@ -1,10 +1,11 @@
 // CAN_error_handling — inspect and clear MCP2515 error states
-// Demonstrates: checkError(), getErrorFlags(), clearErrors()
+// Demonstrates: checkError(), getErrorFlags(), clearRXnOVR()
 //
 // The MCP2515 tracks error conditions in its EFLG register.
 // checkError() returns true if any error flag is set.
 // getErrorFlags() returns the raw register value for individual flag tests.
-// clearErrors() resets all error indicators in one call.
+// clearRXnOVR() clears overflow flags and all interrupt flags.
+// Individual clears (clearMERR(), clearERRIF()) are also available.
 
 #include <SPI.h>
 #include <mcp2515.h>
@@ -46,8 +47,8 @@ void loop() {
             Serial.println("  Warning threshold reached");
         }
 
-        // Clear all error flags in a single call
-        mcp2515.clearErrors();
+        // Clear overflow flags and interrupt flags
+        mcp2515.clearRXnOVR();
         Serial.println("Errors cleared");
     }
 

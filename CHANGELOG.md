@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.1.2] - 2026-06-25
+
+### Added
+- 4 new examples: `CAN_interrupt`, `CAN_loopback_test`, `CAN_queue_monitor`,
+  `CAN_error_handling`
+- Inline comments to all 7 examples for readability
+
+### Changed
+- README: examples table replaces raw method listings, interrupt helper API
+  documented, footer simplified (drops Seeed promo, links upstream)
+- Examples consistently use `setOperatingMode(CAN_MODE)` over individual mode methods
+
+### Fixed
+- Examples: `clearErrors()` -> `clearRXnOVR()` in error handling example
+
 ## [2.1.1] - 2026-06-24
 
 ### Fixed

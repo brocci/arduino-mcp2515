@@ -271,7 +271,7 @@ All examples are in the `examples/` directory.
 | `CAN_interrupt` | Interrupt-driven receive using `enableInterrupt()` + `handleInterrupt()` |
 | `CAN_loopback_test` | Self-test in loopback mode — send and verify reception without bus hardware |
 | `CAN_queue_monitor` | Queue health diagnostics — `getTxQueueDepth()`, `getRxQueueDepth()`, `getRxQueueDropCount()`, `getRxHardwareOverflowCount()` |
-| `CAN_error_handling` | Error flag inspection with `checkError()`, `getErrorFlags()`, `clearErrors()` |
+| `CAN_error_handling` | Error flag inspection with `checkError()`, `getErrorFlags()`, `clearRXnOVR()` |
 | `CAN_SpeedTest` | Throughput measurement — messages received per second |
 
 For more information, please refer to [wiki page](http://www.seeedstudio.com/wiki/CAN-BUS_Shield) .

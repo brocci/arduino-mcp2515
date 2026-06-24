@@ -28,6 +28,7 @@ MCP2515::MCP2515(const uint8_t _CS, const uint32_t _SPI_CLOCK, SPIClass * _SPI)
     _txInterruptPending = false;
     _rxQueueDropCount = 0;
     _rxHardwareOverflowCount = 0;
+    _intPin = -1;
 }
 
 void MCP2515::begin() {
@@ -103,6 +104,7 @@ MCP2515::ERROR MCP2515::reset(void)
 }
 
 void MCP2515::enableInterrupt(int intPin, void (*callback)(void)) {
+    _intPin = intPin;
     pinMode(intPin, INPUT_PULLUP);
     // ESP8266 core v3.x and ESP32 core removed usingInterrupt() from SPIClass.
     // SPI interrupt safety relies on beginTransaction/endTransaction.
@@ -112,6 +114,13 @@ void MCP2515::enableInterrupt(int intPin, void (*callback)(void)) {
     attachInterrupt(digitalPinToInterrupt(intPin), callback, FALLING);
 }
 
+void MCP2515::disableInterrupt(void) {
+    if (_intPin >= 0) {
+        detachInterrupt(digitalPinToInterrupt(_intPin));
+        _intPin = -1;
+    }
+}
+
 void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
 {
     startSPI();
@@ -119,7 +128,6 @@ void MCP2515_ISR_ATTR MCP2515::handleInterrupt(void)
     uint8_t canintf = readRegisterRaw(MCP_CANINTF);
 
     if (canintf & (CANINTF_RX0IF | CANINTF_RX1IF)) {
-        modifyRegisterRaw(MCP_CANINTF, CANINTF_RX0IF | CANINTF_RX1IF, 0);
         _rxInterruptPending = true;
     }
 

@@ -37,6 +37,14 @@ jobs:
             name: "STM32"
             core: "STMicroelectronics:stm32"
             url: "https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json"
+          - fqbn: "arduino:sam:arduino_due_x"
+            name: "SAM (Due)"
+            core: "arduino:sam"
+            url: "https://arduino.arduino.software/SAM/package_sam_index.json"
+          - fqbn: "arduino:renesas_uno:unor4wifi"
+            name: "Uno R4"
+            core: "arduino:renesas_uno"
+            url: "https://raw.githubusercontent.com/arduino/arduino-core-renesas/main/package_renesas_uno_index.json"
 
     steps:
       - uses: actions/checkout@v4

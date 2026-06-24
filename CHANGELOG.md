@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.1.1] - 2026-06-24
+
+### Fixed
+- RX frame loss caused by ISR clearing CANINTF RX flags before main loop reads
+  the hardware buffers. `handleInterrupt()` no longer clears RX0IF/RX1IF;
+  the flags are now cleared by `readMessage()` after reading the data.
+
+### Added
+- `disableInterrupt()` — symmetric counterpart to `enableInterrupt()`
+- `static_assert(SIZE <= 255)` in `CircularQueue` — catches oversized queues
+  at compile time
+
 ## [2.0.0] - 2026-06-05
 
 ### Added

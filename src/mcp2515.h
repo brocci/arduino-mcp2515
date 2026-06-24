@@ -14,6 +14,7 @@
 
 template<typename T, size_t SIZE>
 class CircularQueue {
+    static_assert(SIZE <= 255, "CircularQueue size exceeds uint8_t counter range");
 private:
     T frames[SIZE];
     uint8_t head;
@@ -556,6 +557,7 @@ class MCP2515
         volatile bool _txInterruptPending;
         uint16_t _rxQueueDropCount;
         uint16_t _rxHardwareOverflowCount;
+        int8_t _intPin;
 
         ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
         ERROR sendMessageDirect(const struct can_frame *frame);
@@ -581,6 +583,7 @@ class MCP2515
         // Interrupt
         //
         void enableInterrupt(int intPin, void (*callback)(void));
+        void disableInterrupt(void);
         void handleInterrupt(void);
 
         //

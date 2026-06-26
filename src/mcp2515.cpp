@@ -237,7 +237,10 @@ MCP2515::ERROR MCP2515::setMode(const CANCTRL_REQOP_MODE mode)
         uint8_t newmode = readRegister(MCP_CANSTAT);
         newmode &= CANSTAT_OPMOD;
 
-        modeMatch = newmode == mode;
+        // OSM bit (0x08) is not reflected in CANSTAT's OPMOD field (0xE0).
+        // When ONE_SHOT is requested, the chip reports NORMAL (0x00) mode.
+        // Mask non-opmode bits so the compare works for all modes.
+        modeMatch = newmode == (mode & CANSTAT_OPMOD);
 
         if (modeMatch) {
             break;

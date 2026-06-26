@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 - Examples: `clearErrors()` -> `clearRXnOVR()` in error handling example
+- `setMode()` returning `ERROR_FAIL` for `ONE_SHOT` mode (OSM bit not reflected in CANSTAT)
 
 ## [2.1.1] - 2026-06-24
 

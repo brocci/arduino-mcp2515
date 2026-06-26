@@ -28,6 +28,8 @@ CAN-BUS is a common industrial bus because of its long travel distance, medium c
 * [Software Usage](#software-usage)
    * [Library Installation](#library-installation)
    * [Initialization](#initialization)
+   * [SPI Bus Speed](#spi-bus-speed)
+   * [CAN Bit Timing](#can-bit-timing)
    * [Frame data format](#frame-data-format)
    * [Send Data](#send-data)
    * [Receive Data](#receive-data)
@@ -109,25 +111,25 @@ mcp2515.setBitrate(CAN_125KBPS);
 mcp2515.setOperatingMode(MCP2515::CAN_MODE_LOOPBACK);
 ```
 
-<br>
 
-<br>
-You can also set oscillator frequency for module when setting bitrate:
+## SPI Bus Speed
 
-```C++
-mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
-```
-<br>
-If necessary, you can change the SPI bus speed.
-The default speed is 10 MHz, which is not officially supported by the Arduino Uno, for example.
-Example for changing it to 8 MHz:
+The SPI bus speed can be changed by passing it (in Hz) as the second constructor argument.
+The default is 10 MHz, which exceeds the Arduino Uno's rated SPI capability. Example for 8 MHz:
 
 ```C++
 MCP2515 mcp2515(10, 8000000);
 ```
 
-<br>
-The available clock speeds are listed as follows:
+## CAN Bit Timing
+
+The oscillator frequency of your MCP2515 module is passed to `setBitrate()`:
+
+```C++
+mcp2515.setBitrate(CAN_125KBPS, MCP_8MHZ);
+```
+
+The available clock speeds are:
 
 ```C++
 enum CAN_CLOCK {
@@ -137,7 +139,7 @@ enum CAN_CLOCK {
 };
 ```
 
-Default value is MCP_16MHZ
+Default value is `MCP_16MHZ` (most common for CAN-BUS shields using a 16 MHz crystal).
 <br>
 
 Note: To transfer data on high speed of CAN interface via UART dont forget to update UART baudrate as necessary.
@@ -148,9 +150,9 @@ Library uses Linux-like structure to store can frames;
 
 ```C++
 struct can_frame {
-    uint32_t can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
-    uint8_t  can_dlc;
-    uint8_t  data[8];
+    canid_t    can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
+    __u8       can_dlc; /* frame payload length in byte (0 .. 8) */
+    alignas(8) __u8     data[CAN_MAX_DLEN];
 };
 ```
 
@@ -247,7 +249,7 @@ There are 2 receive mask registers and 5 filter registers on the controller chip
 We provide two functions for you to utilize these mask and filter registers. They are:
 
 ```C++
-MCP2515::ERROR setFilterMask(const MASK mask, const bool ext, const uint32_t ulData)
+MCP2515::ERROR setFilterMask(const MASK num, const bool ext, const uint32_t ulData)
 MCP2515::ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData)
 ```
 
